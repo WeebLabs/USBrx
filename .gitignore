@@ -1,0 +1,20 @@
+# Build output
+/build/
+/build-*/
+*.uf2
+*.elf
+*.bin
+*.hex
+*.dis
+*.map
+compile_commands.json
+
+# Vendored Pico SDK is an external dependency, not committed.
+# Provide it via the PICO_SDK_PATH environment variable, or place/symlink it
+# here as ./pico-sdk (see README).
+/pico-sdk/
+
+# Editor / OS cruft
+.DS_Store
+.vscode/
+.cache/
