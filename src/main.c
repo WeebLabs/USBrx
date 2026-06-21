@@ -40,6 +40,11 @@
 /* Configuration                                                               */
 /* -------------------------------------------------------------------------- */
 #define SPDIF_DATA_PIN        15     /* S/PDIF data input GPIO */
+#define SPDIF_LOCK_STATUS_44100_PIN 2      /* S/PDIF lock at 44100 output GPIO */
+#define SPDIF_LOCK_STATUS_48000_PIN 3      /* S/PDIF lock at 44100 output GPIO */
+#define SPDIF_LOCK_STATUS_88200_PIN 4      /* S/PDIF lock at 44100 output GPIO */
+#define SPDIF_LOCK_STATUS_96000_PIN 5      /* S/PDIF lock at 44100 output GPIO */
+
 #define PIN_DCDC_PSM_CTRL     23     /* Pico SMPS mode pin: drive high for PWM (less audio noise) */
 
 #define AUDIO_IN_EP           0x81   /* isochronous IN endpoint address (must match descriptor) */
@@ -79,6 +84,10 @@ static uint8_t __attribute__((aligned(4))) g_pkt[USBRX_EP_IN_SIZE];
 /* Flags set from S/PDIF IRQ callbacks, consumed (for logging) in main loop. */
 static volatile bool g_evt_stable = false;
 static volatile bool g_evt_lost   = false;
+
+/* Current lock state */
+static bool g_locked = false;
+
 
 /* -------------------------------------------------------------------------- */
 /* Rate-matching servo                                                         */
@@ -446,6 +455,23 @@ static inline void led_init(void)
 #endif
 }
 
+/* -------------------------------------------------------------------------- */
+/* GPIO output status indicators                                              */
+/* one each for locked to 44.1, 48, 88.2 and 96kHz S/PDIF input               */
+/* -------------------------------------------------------------------------- */
+static inline void usbrx_gpio_init(void)
+{
+    gpio_init(SPDIF_LOCK_STATUS_44100_PIN);
+    gpio_init(SPDIF_LOCK_STATUS_48000_PIN);
+    gpio_init(SPDIF_LOCK_STATUS_88200_PIN);
+    gpio_init(SPDIF_LOCK_STATUS_96000_PIN);
+
+    gpio_set_dir(SPDIF_LOCK_STATUS_44100_PIN, GPIO_OUT);
+    gpio_set_dir(SPDIF_LOCK_STATUS_48000_PIN, GPIO_OUT);
+    gpio_set_dir(SPDIF_LOCK_STATUS_88200_PIN, GPIO_OUT);
+    gpio_set_dir(SPDIF_LOCK_STATUS_96000_PIN, GPIO_OUT);
+}
+
 static inline void led_set(bool on)
 {
 #ifdef PICO_DEFAULT_LED_PIN
@@ -475,6 +501,25 @@ static void led_task(void)
     }
 }
 
+static void gpio_task(void)
+{
+    if(g_locked == true)
+    {
+        spdif_rx_samp_freq_t sf = spdif_rx_get_samp_freq();
+        gpio_put(SPDIF_LOCK_STATUS_44100_PIN, sf == SAMP_FREQ_44100 ? 1 : 0);
+        gpio_put(SPDIF_LOCK_STATUS_48000_PIN, sf == SAMP_FREQ_48000 ? 1 : 0);
+        gpio_put(SPDIF_LOCK_STATUS_88200_PIN, sf == SAMP_FREQ_88200 ? 1 : 0);
+        gpio_put(SPDIF_LOCK_STATUS_96000_PIN, sf == SAMP_FREQ_96000 ? 1 : 0);
+    }
+    else
+    {
+        gpio_put(SPDIF_LOCK_STATUS_44100_PIN, 0);
+        gpio_put(SPDIF_LOCK_STATUS_48000_PIN, 0);
+        gpio_put(SPDIF_LOCK_STATUS_88200_PIN, 0);
+        gpio_put(SPDIF_LOCK_STATUS_96000_PIN, 0);
+    }
+}
+
 /* -------------------------------------------------------------------------- */
 /* main                                                                        */
 /* -------------------------------------------------------------------------- */
@@ -484,6 +529,7 @@ int main(void)
      * 48 MHz USB PLL. Do NOT call set_sys_clock_* here. */
     stdio_init_all();
     led_init();
+    usbrx_gpio_init();
 
     /* Pico SMPS into PWM mode for lower audio noise (harmless on other boards). */
     gpio_init(PIN_DCDC_PSM_CTRL);
@@ -512,14 +558,17 @@ int main(void)
     while (true) {
         tud_task();
         led_task();
+        gpio_task();
 
         if (g_evt_stable) {
             g_evt_stable = false;
+            g_locked = true;
             printf("S/PDIF locked: %d Hz (%.1f Hz actual)\n",
                    (int) spdif_rx_get_samp_freq(), (double) spdif_rx_get_samp_freq_actual());
         }
         if (g_evt_lost) {
             g_evt_lost = false;
+            g_locked = false;
             printf("S/PDIF signal lost\n");
         }
     }

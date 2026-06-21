@@ -32,6 +32,7 @@ sample-accurately **without any resampling**.
 - **Graceful with no signal** — streams silence until a stable S/PDIF lock is
   acquired, then begins capturing.
 - **Onboard-LED status** and **UART debug log** for easy bring-up.
+- **GPIO status outputs** - simple status outputs to drive LEDs
 - Self-contained CMake build on top of the Raspberry Pi Pico SDK + TinyUSB.
 
 ---
@@ -117,6 +118,10 @@ sources are not supported at 24-bit on full-speed USB. The endpoint reserves a
 | 20       | GP15 | S/PDIF data in |
 | 1        | GP0  | UART0 TX (debug log, optional) |
 | 2        | GP1  | UART0 RX (debug log, optional) |
+| 4        | GP2  | Output, high when S/PDIF locked to 44.1kHz |
+| 5        | GP3  | Output, high when S/PDIF locked to 48kHz |
+| 6        | GP4  | Output, high when S/PDIF locked to 88.2kHz |
+| 7        | GP5  | Output, high when S/PDIF locked to 96kHZ |
 | 38 etc.  | GND  | ground |
 
 You need a coaxial or TOSLINK S/PDIF receiver module (e.g. a DLR1160 or
@@ -125,6 +130,9 @@ TOSLINK, the receiver module's logic output can drive GP15 directly. See the
 upstream [schematic](https://github.com/elehobica/pico_spdif_rx/blob/main/doc/SPDIF_Rx_Schematic.png).
 
 The input GPIO is the `SPDIF_DATA_PIN` define at the top of `src/main.c`.
+
+A set of GPIO pins provide status outputs that can be used for simple input lock reporting,
+possibly driving additional LEDs.
 
 ### Onboard-LED status
 
